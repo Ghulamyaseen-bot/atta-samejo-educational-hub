@@ -21,55 +21,45 @@ jobs:
           ZIP_FILE=$(find . -type f -name "*.zip" | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: No ZIP file found."
+            echo "ERROR: No ZIP file found in repository."
             exit 1
           fi
 
           echo "Found ZIP: $ZIP_FILE"
-
           mkdir -p project
           unzip -q "$ZIP_FILE" -d project
 
-          echo "Extracted project structure:"
-          find project -maxdepth 4 -type f | head -150
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
 
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
-      - name: Set up Android SDK
-  uses: android-actions/setup-android@v4
-  with:
-    packages: 'platform-tools'
-
-      - name: Install Android SDK
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Check Android project
+      - name: Create Capacitor Mobile Project & Build APK
         shell: bash
         run: |
-          if [ ! -d "project/android" ]; then
-            echo "ERROR: project/android folder was not found."
-            echo "Actual folders:"
-            find project -maxdepth 3 -type d
-            exit 1
-          fi
+          mkdir webapp
+          cd webapp
+          
+          # Initialize Capacitor Project
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          
+          # Copy extracted web files
+          cp -r ../project/* .
+          
+          # Generate Capacitor Config
+          npx cap init "EduHub App" "com.attasamejo.eduhub" --web-dir .
+          npx cap add android
+          npx cap sync android
 
-          if [ ! -f "project/android/gradlew" ]; then
-            echo "ERROR: project/android/gradlew was not found."
-            exit 1
-          fi
-
-      - name: Build Debug APK
-        working-directory: project/android
-        run: |
+          # Build APK using Gradle
+          cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
@@ -77,5 +67,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AttaSamejo-EduHub-APK
-          path: project/**/*.apk
+          path: webapp/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
